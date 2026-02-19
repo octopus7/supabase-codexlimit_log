@@ -1,0 +1,78 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Snapshot Entry</title>
+  <link rel="stylesheet" href="./styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="./config.js"></script>
+</head>
+<body>
+  <main class="container">
+    <header class="page-header">
+      <h1>Snapshot Entry</h1>
+      <p>Manual entry page for 5h / 7d snapshots.</p>
+    </header>
+
+    <section class="card" id="statusCard">
+      <p id="statusText">Initializing...</p>
+      <p id="message" class="message" aria-live="polite"></p>
+    </section>
+
+    <section class="card" id="authCard">
+      <h2>Single Account Sign-in</h2>
+      <div class="auth-grid">
+        <form id="signinForm" class="form-stack">
+          <h3>Sign in</h3>
+          <label>
+            ID (email)
+            <input id="signinEmail" type="email" required autocomplete="email" />
+          </label>
+          <label>
+            Password
+            <input id="signinPassword" type="password" required autocomplete="current-password" />
+          </label>
+          <button type="submit">Sign in</button>
+        </form>
+      </div>
+    </section>
+
+    <section class="card hidden" id="appCard">
+      <div class="toolbar">
+        <strong id="userEmail"></strong>
+        <button id="signoutBtn" type="button">Sign out</button>
+      </div>
+
+      <form id="snapshotForm" class="form-stack">
+        <h2>Add Usage Snapshot</h2>
+        <div class="grid">
+          <label>
+            Snapshot time
+            <input id="loggedAt" type="datetime-local" required />
+          </label>
+          <label>
+            5h used
+            <input id="used5h" type="number" min="0" step="1" required />
+          </label>
+          <label>
+            5h limit
+            <input id="limit5h" type="number" min="1" step="1" value="100" required />
+          </label>
+          <label>
+            7d used
+            <input id="used7d" type="number" min="0" step="1" required />
+          </label>
+          <label>
+            7d limit
+            <input id="limit7d" type="number" min="1" step="1" value="100" required />
+          </label>
+        </div>
+        <button type="submit">Save snapshot</button>
+      </form>
+    </section>
+  </main>
+
+  <script src="./snapshot.js"></script>
+</body>
+</html>
