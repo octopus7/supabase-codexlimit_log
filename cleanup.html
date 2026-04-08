@@ -1,20 +1,18 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Codex Usage Tracker</title>
+  <title>Cleanup Preview</title>
   <link rel="stylesheet" href="./styles.css" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3"></script>
   <script src="./config.js"></script>
 </head>
 <body>
   <main class="container">
     <header class="page-header">
-      <h1>Codex Usage Tracker</h1>
-      <p>Record and visualize 5h / 7d usage snapshots.</p>
+      <h1>Cleanup Preview</h1>
+      <p>Review redundant middle snapshots before deletion.</p>
     </header>
 
     <section class="card" id="statusCard">
@@ -44,40 +42,40 @@
       <div class="toolbar">
         <strong id="userEmail"></strong>
         <div class="toolbar-actions">
-          <button id="exportCsvBtn" type="button" class="button-secondary">Export CSV Backup</button>
-          <button id="compactBtn" type="button" class="button-secondary">Review Redundant Middle Snapshots</button>
+          <button id="refreshBtn" type="button" class="button-secondary">Refresh Preview</button>
+          <button id="deleteBtn" type="button" class="button-danger" disabled>Confirm Delete</button>
           <button id="signoutBtn" type="button">Sign out</button>
         </div>
       </div>
 
-      <div class="toolbar">
-        <div>
-          <h3>Current 4-Week Window</h3>
-          <p id="windowLabel" class="section-note">-</p>
-        </div>
-        <div class="toolbar-actions">
-          <button id="prevWindowBtn" type="button" class="button-secondary">Previous 4 Weeks</button>
-          <button id="nextWindowBtn" type="button" class="button-secondary">Next 4 Weeks</button>
-        </div>
-      </div>
-
-      <div class="charts">
-        <article class="chart-card">
-          <h3>Usage Percentage</h3>
-          <div class="canvas-wrap">
-            <canvas id="percentChart"></canvas>
-          </div>
+      <div class="summary-grid">
+        <article class="summary-card">
+          <h3>Total Snapshots</h3>
+          <p id="totalCount" class="stat-value">0</p>
+        </article>
+        <article class="summary-card">
+          <h3>Delete Candidates</h3>
+          <p id="deleteCount" class="stat-value">0</p>
+        </article>
+        <article class="summary-card">
+          <h3>Kept After Cleanup</h3>
+          <p id="keepCount" class="stat-value">0</p>
         </article>
       </div>
 
-      <h3>Snapshots In Window</h3>
+      <p class="section-note">
+        A row appears here only when its previous row, current row, and next row all have the same 5h and 7d values.
+      </p>
+
       <div class="table-wrap">
-        <table id="snapshotTable">
+        <table id="candidateTable">
           <thead>
             <tr>
-              <th>Time</th>
-              <th>5h %</th>
-              <th>7d %</th>
+              <th>Delete Time</th>
+              <th>5h</th>
+              <th>7d</th>
+              <th>Previous Time</th>
+              <th>Next Time</th>
             </tr>
           </thead>
           <tbody></tbody>
@@ -86,6 +84,6 @@
     </section>
   </main>
 
-  <script src="./app.js"></script>
+  <script src="./cleanup.js"></script>
 </body>
 </html>

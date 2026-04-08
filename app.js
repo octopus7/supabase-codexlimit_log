@@ -1,4 +1,4 @@
-﻿(() => {
+(() => {
   const statusText = document.getElementById("statusText");
   const messageEl = document.getElementById("message");
 
@@ -6,19 +6,31 @@
   const appCard = document.getElementById("appCard");
 
   const signinForm = document.getElementById("signinForm");
+  const exportCsvBtn = document.getElementById("exportCsvBtn");
+  const compactBtn = document.getElementById("compactBtn");
+  const prevWindowBtn = document.getElementById("prevWindowBtn");
+  const nextWindowBtn = document.getElementById("nextWindowBtn");
   const signoutBtn = document.getElementById("signoutBtn");
 
   const signinEmailEl = document.getElementById("signinEmail");
   const signinPasswordEl = document.getElementById("signinPassword");
 
   const userEmailEl = document.getElementById("userEmail");
+  const windowLabelEl = document.getElementById("windowLabel");
   const snapshotTableBody = document.querySelector("#snapshotTable tbody");
 
   const percentCanvas = document.getElementById("percentChart");
 
+  const FOUR_WEEKS_MS = 28 * 24 * 60 * 60 * 1000;
+
   let supabaseClient = null;
   let currentUser = null;
   let percentChart = null;
+  let latestWindowEndMs = null;
+  let currentWindowIndex = 0;
+  let hasOlderWindows = false;
+  let isWindowLoading = false;
+  let isExporting = false;
 
   function showMessage(text, type = "info") {
     messageEl.textContent = text || "";
@@ -51,21 +63,17 @@
     return new Date(value).toLocaleString();
   }
 
+  function formatWindowRange(startMs, endMs) {
+    return `${fmt(startMs)} - ${fmt(endMs)}`;
+  }
+
   function setSignedInView(user) {
     currentUser = user;
     statusText.textContent = "Signed in";
     authCard.classList.add("hidden");
     appCard.classList.remove("hidden");
     userEmailEl.textContent = `User: ${user.email}`;
-  }
-
-  function setSignedOutView() {
-    currentUser = null;
-    statusText.textContent = "Sign-in required";
-    authCard.classList.remove("hidden");
-    appCard.classList.add("hidden");
-    clearCharts();
-    snapshotTableBody.innerHTML = "";
+    updateActionButtons();
   }
 
   function clearCharts() {
@@ -75,11 +83,21 @@
     }
   }
 
-  function renderTable(rows) {
+  function updateActionButtons() {
+    exportCsvBtn.disabled = !currentUser || isExporting;
+    compactBtn.disabled = !currentUser || isExporting;
+  }
+
+  function updateWindowButtons() {
+    prevWindowBtn.disabled = !currentUser || isWindowLoading || !hasOlderWindows;
+    nextWindowBtn.disabled = !currentUser || isWindowLoading || currentWindowIndex === 0;
+  }
+
+  function renderTable(rows, emptyMessage = "No snapshots yet.") {
     if (!rows.length) {
       snapshotTableBody.innerHTML = `
         <tr>
-          <td colspan="3">No snapshots yet.</td>
+          <td colspan="3">${escapeHtml(emptyMessage)}</td>
         </tr>`;
       return;
     }
@@ -98,6 +116,21 @@
           </tr>`;
       })
       .join("");
+  }
+
+  function setSignedOutView() {
+    currentUser = null;
+    latestWindowEndMs = null;
+    currentWindowIndex = 0;
+    hasOlderWindows = false;
+    statusText.textContent = "Sign-in required";
+    authCard.classList.remove("hidden");
+    appCard.classList.add("hidden");
+    windowLabelEl.textContent = "-";
+    clearCharts();
+    renderTable([], "No snapshots yet.");
+    updateActionButtons();
+    updateWindowButtons();
   }
 
   function renderCharts(rows) {
@@ -163,44 +196,269 @@
     });
   }
 
-  async function loadSnapshots() {
-    const {
-      data: { user },
-      error: userError
-    } = await supabaseClient.auth.getUser();
+  function getWindowBounds() {
+    const endMs = latestWindowEndMs - currentWindowIndex * FOUR_WEEKS_MS;
+    const startMs = endMs - FOUR_WEEKS_MS;
 
-    if (userError) {
-      showMessage(userError.message, "error");
-      return;
-    }
+    return {
+      startMs,
+      endMs,
+      startIso: new Date(startMs).toISOString(),
+      endIso: new Date(endMs).toISOString()
+    };
+  }
 
-    if (!user) {
-      setSignedOutView();
-      return;
-    }
-
-    if (!currentUser || currentUser.id !== user.id) {
-      setSignedInView(user);
-    }
-
+  async function fetchLatestSnapshotTime(userId) {
     const { data, error } = await supabaseClient
       .from("usage_logs")
-      .select("id, logged_at, used_5h, limit_5h, used_7d, limit_7d")
-      .eq("user_id", user.id)
-      .order("logged_at", { ascending: true })
-      .limit(500);
+      .select("logged_at")
+      .eq("user_id", userId)
+      .order("logged_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
     if (error) {
-      showMessage(error.message, "error");
+      throw error;
+    }
+
+    return data?.logged_at || null;
+  }
+
+  async function checkHasOlderSnapshots(userId, startIso) {
+    const { data, error } = await supabaseClient
+      .from("usage_logs")
+      .select("id")
+      .eq("user_id", userId)
+      .lte("logged_at", startIso)
+      .order("logged_at", { ascending: false })
+      .limit(1);
+
+    if (error) {
+      throw error;
+    }
+
+    return Boolean(data && data.length > 0);
+  }
+
+  async function fetchAllSnapshotsForUser(userId) {
+    const pageSize = 1000;
+    const rows = [];
+
+    for (let from = 0; ; from += pageSize) {
+      const { data, error } = await supabaseClient
+        .from("usage_logs")
+        .select("id, user_id, logged_at, used_5h, limit_5h, used_7d, limit_7d, created_at")
+        .eq("user_id", userId)
+        .order("logged_at", { ascending: true })
+        .range(from, from + pageSize - 1);
+
+      if (error) {
+        throw error;
+      }
+
+      rows.push(...(data || []));
+
+      if (!data || data.length < pageSize) {
+        return rows;
+      }
+    }
+  }
+
+  function toCsvCell(value) {
+    const text = value == null ? "" : String(value);
+    return `"${text.replaceAll('"', '""')}"`;
+  }
+
+  function buildCsvContent(rows) {
+    const headers = [
+      "id",
+      "user_id",
+      "logged_at",
+      "used_5h",
+      "limit_5h",
+      "used_7d",
+      "limit_7d",
+      "created_at"
+    ];
+    const lines = [headers.join(",")];
+
+    rows.forEach((row) => {
+      lines.push([
+        row.id,
+        row.user_id,
+        row.logged_at,
+        row.used_5h,
+        row.limit_5h,
+        row.used_7d,
+        row.limit_7d,
+        row.created_at
+      ].map(toCsvCell).join(","));
+    });
+
+    return lines.join("\r\n");
+  }
+
+  function formatFileTimestamp(date = new Date()) {
+    const pad = (value) => String(value).padStart(2, "0");
+    return [
+      date.getFullYear(),
+      pad(date.getMonth() + 1),
+      pad(date.getDate())
+    ].join("-") + "_" + [
+      pad(date.getHours()),
+      pad(date.getMinutes()),
+      pad(date.getSeconds())
+    ].join("-");
+  }
+
+  function downloadCsvFile(filename, content) {
+    const blob = new Blob(["\uFEFF", content], { type: "text/csv;charset=utf-8" });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  }
+
+  async function handleExportCsv() {
+    if (!currentUser || isExporting) {
       return;
     }
 
-    renderTable(data || []);
-    renderCharts(data || []);
+    isExporting = true;
+    exportCsvBtn.textContent = "Exporting...";
+    updateActionButtons();
 
-    if (!data || data.length === 0) {
-      showMessage("No snapshots found for this account.");
+    try {
+      const rows = await fetchAllSnapshotsForUser(currentUser.id);
+      const csvContent = buildCsvContent(rows);
+      const filename = `usage_logs_backup_${formatFileTimestamp()}.csv`;
+
+      downloadCsvFile(filename, csvContent);
+      showMessage(`Exported ${rows.length} snapshot(s) to ${filename}.`, "success");
+    } catch (error) {
+      showMessage(error.message || String(error), "error");
+    } finally {
+      isExporting = false;
+      exportCsvBtn.textContent = "Export CSV Backup";
+      updateActionButtons();
     }
+  }
+
+  async function handleCompactSnapshots() {
+    if (!currentUser) {
+      return;
+    }
+
+    const cleanupWindow = window.open("./cleanup.html", "_blank", "noopener");
+    if (!cleanupWindow) {
+      showMessage("Allow pop-ups to open the cleanup preview page.", "error");
+    }
+  }
+
+  async function loadSnapshots(options = {}) {
+    const resetWindow = options.resetWindow === true;
+    const refreshLatestAnchor = options.refreshLatestAnchor === true;
+
+    if (isWindowLoading) {
+      return;
+    }
+
+    isWindowLoading = true;
+    updateWindowButtons();
+
+    try {
+      const {
+        data: { user },
+        error: userError
+      } = await supabaseClient.auth.getUser();
+
+      if (userError) {
+        throw userError;
+      }
+
+      if (!user) {
+        setSignedOutView();
+        return;
+      }
+
+      if (!currentUser || currentUser.id !== user.id) {
+        setSignedInView(user);
+      }
+
+      if (resetWindow) {
+        currentWindowIndex = 0;
+      }
+
+      if (latestWindowEndMs === null || resetWindow || refreshLatestAnchor) {
+        const latestLoggedAt = await fetchLatestSnapshotTime(user.id);
+
+        if (!latestLoggedAt) {
+          latestWindowEndMs = null;
+          currentWindowIndex = 0;
+          hasOlderWindows = false;
+          windowLabelEl.textContent = "-";
+          renderTable([], "No snapshots found for this account.");
+          renderCharts([]);
+          showMessage("No snapshots found for this account.");
+          return;
+        }
+
+        latestWindowEndMs = new Date(latestLoggedAt).getTime();
+      }
+
+      const { startMs, endMs, startIso, endIso } = getWindowBounds();
+      const { data, error } = await supabaseClient
+        .from("usage_logs")
+        .select("id, logged_at, used_5h, limit_5h, used_7d, limit_7d")
+        .eq("user_id", user.id)
+        .gt("logged_at", startIso)
+        .lte("logged_at", endIso)
+        .order("logged_at", { ascending: true });
+
+      if (error) {
+        throw error;
+      }
+
+      hasOlderWindows = await checkHasOlderSnapshots(user.id, startIso);
+      windowLabelEl.textContent = formatWindowRange(startMs, endMs);
+      renderTable(data || [], "No snapshots found in this 4-week window.");
+      renderCharts(data || []);
+
+      if (!data || data.length === 0) {
+        showMessage("No snapshots found in this 4-week window.");
+      } else if (currentWindowIndex === 0) {
+        showMessage("Showing the latest 4-week window.");
+      } else {
+        showMessage(`Showing ${currentWindowIndex * 4} to ${(currentWindowIndex + 1) * 4} weeks before the latest snapshot.`);
+      }
+    } catch (error) {
+      showMessage(error.message || String(error), "error");
+    } finally {
+      isWindowLoading = false;
+      updateWindowButtons();
+    }
+  }
+
+  async function handlePreviousWindow() {
+    if (!currentUser || isWindowLoading || !hasOlderWindows) {
+      return;
+    }
+
+    currentWindowIndex += 1;
+    await loadSnapshots();
+  }
+
+  async function handleNextWindow() {
+    if (!currentUser || isWindowLoading || currentWindowIndex === 0) {
+      return;
+    }
+
+    currentWindowIndex -= 1;
+    await loadSnapshots({ refreshLatestAnchor: currentWindowIndex === 0 });
   }
 
   async function handleSignIn(event) {
@@ -218,10 +476,8 @@
 
     if (data?.user) {
       setSignedInView(data.user);
-      await loadSnapshots();
+      await loadSnapshots({ resetWindow: true, refreshLatestAnchor: true });
     }
-
-    showMessage("Signed in.", "success");
   }
 
   async function handleSignOut() {
@@ -239,7 +495,7 @@
       setTimeout(() => {
         if (newSession?.user) {
           setSignedInView(newSession.user);
-          loadSnapshots().catch((error) => {
+          loadSnapshots({ resetWindow: true, refreshLatestAnchor: true }).catch((error) => {
             showMessage(error.message || String(error), "error");
           });
         } else {
@@ -261,7 +517,7 @@
 
       if (session?.user) {
         setSignedInView(session.user);
-        await loadSnapshots();
+        await loadSnapshots({ resetWindow: true, refreshLatestAnchor: true });
         return;
       }
 
@@ -295,7 +551,13 @@
     supabaseClient = window.supabase.createClient(config.SUPABASE_URL, config.SUPABASE_ANON_KEY);
 
     signinForm.addEventListener("submit", handleSignIn);
+    exportCsvBtn.addEventListener("click", handleExportCsv);
+    compactBtn.addEventListener("click", handleCompactSnapshots);
+    prevWindowBtn.addEventListener("click", handlePreviousWindow);
+    nextWindowBtn.addEventListener("click", handleNextWindow);
     signoutBtn.addEventListener("click", handleSignOut);
+    updateActionButtons();
+    updateWindowButtons();
 
     statusText.textContent = "Ready";
     await initSession();
