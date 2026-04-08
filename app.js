@@ -17,6 +17,7 @@
 
   const userEmailEl = document.getElementById("userEmail");
   const windowLabelEl = document.getElementById("windowLabel");
+  const windowCountEl = document.getElementById("windowCount");
   const snapshotTableBody = document.querySelector("#snapshotTable tbody");
 
   const percentCanvas = document.getElementById("percentChart");
@@ -94,6 +95,8 @@
   }
 
   function renderTable(rows, emptyMessage = "No snapshots yet.") {
+    windowCountEl.textContent = String(rows.length);
+
     if (!rows.length) {
       snapshotTableBody.innerHTML = `
         <tr>
@@ -116,6 +119,29 @@
           </tr>`;
       })
       .join("");
+  }
+
+  function createLineDataset(label, points, borderColor, backgroundColor) {
+    return {
+      label,
+      data: points,
+      borderColor,
+      backgroundColor,
+      pointBackgroundColor: borderColor,
+      tension: 0.2,
+      segment: {
+        borderColor: (context) => {
+          const previousY = context.p0.parsed.y;
+          const currentY = context.p1.parsed.y;
+
+          if (currentY < previousY) {
+            return "rgba(0, 0, 0, 0)";
+          }
+
+          return borderColor;
+        }
+      }
+    };
   }
 
   function setSignedOutView() {
@@ -158,20 +184,8 @@
       type: "line",
       data: {
         datasets: [
-          {
-            label: "5h %",
-            data: points5,
-            borderColor: "#0b7a75",
-            backgroundColor: "rgba(11, 122, 117, 0.1)",
-            tension: 0.2
-          },
-          {
-            label: "7d %",
-            data: points7,
-            borderColor: "#1f6feb",
-            backgroundColor: "rgba(31, 111, 235, 0.1)",
-            tension: 0.2
-          }
+          createLineDataset("5h %", points5, "#0b7a75", "rgba(11, 122, 117, 0.1)"),
+          createLineDataset("7d %", points7, "#1f6feb", "rgba(31, 111, 235, 0.1)")
         ]
       },
       options: {

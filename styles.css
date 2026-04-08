@@ -167,6 +167,12 @@ button:disabled {
   margin: 4px 0 0;
 }
 
+.inline-note {
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 400;
+}
+
 .grid {
   display: grid;
   gap: 10px;
