@@ -9,6 +9,7 @@
   const exportCsvBtn = document.getElementById("exportCsvBtn");
   const compactBtn = document.getElementById("compactBtn");
   const windowSizeSelect = document.getElementById("windowSizeSelect");
+  const refreshBtn = document.getElementById("refreshBtn");
   const prevWindowBtn = document.getElementById("prevWindowBtn");
   const nextWindowBtn = document.getElementById("nextWindowBtn");
   const signoutBtn = document.getElementById("signoutBtn");
@@ -24,6 +25,8 @@
   const percentCanvas = document.getElementById("percentChart");
 
   const DAY_MS = 24 * 60 * 60 * 1000;
+  const DEFAULT_WINDOW_DAYS = Number(windowSizeSelect.value) || 28;
+  const WINDOW_SIZE_STORAGE_KEY = "codexUsageTracker.windowSizeDays";
 
   let supabaseClient = null;
   let currentUser = null;
@@ -33,7 +36,7 @@
   let hasOlderWindows = false;
   let isWindowLoading = false;
   let isExporting = false;
-  let currentWindowDays = Number(windowSizeSelect.value) || 28;
+  let currentWindowDays = DEFAULT_WINDOW_DAYS;
 
   function showMessage(text, type = "info") {
     messageEl.textContent = text || "";
@@ -78,6 +81,43 @@
     return days % 7 === 0 ? `${days / 7} week${days === 7 ? "" : "s"}` : `${days} days`;
   }
 
+  function normalizeWindowDays(value) {
+    const parsedValue = Number(value);
+    const hasMatchingOption = Array.from(windowSizeSelect.options).some(
+      (option) => Number(option.value) === parsedValue
+    );
+
+    if (!Number.isInteger(parsedValue) || !hasMatchingOption) {
+      return null;
+    }
+
+    return parsedValue;
+  }
+
+  function readStoredWindowDays() {
+    try {
+      return normalizeWindowDays(window.localStorage.getItem(WINDOW_SIZE_STORAGE_KEY));
+    } catch {
+      return null;
+    }
+  }
+
+  function saveWindowDaysPreference(days) {
+    try {
+      window.localStorage.setItem(WINDOW_SIZE_STORAGE_KEY, String(days));
+    } catch {
+      // Ignore storage access failures and keep the in-memory selection only.
+    }
+  }
+
+  function restoreWindowDaysPreference() {
+    const restoredWindowDays = readStoredWindowDays();
+    const initialWindowDays = restoredWindowDays ?? DEFAULT_WINDOW_DAYS;
+
+    currentWindowDays = initialWindowDays;
+    windowSizeSelect.value = String(initialWindowDays);
+  }
+
   function setSignedInView(user) {
     currentUser = user;
     statusText.textContent = "Signed in";
@@ -106,6 +146,7 @@
   }
 
   function updateWindowButtons() {
+    refreshBtn.disabled = !currentUser || isWindowLoading;
     prevWindowBtn.disabled = !currentUser || isWindowLoading || !hasOlderWindows;
     nextWindowBtn.disabled = !currentUser || isWindowLoading || currentWindowIndex === 0;
     windowSizeSelect.disabled = isWindowLoading;
@@ -505,13 +546,22 @@
     await loadSnapshots({ refreshLatestAnchor: currentWindowIndex === 0 });
   }
 
+  async function handleRefreshSnapshots() {
+    if (!currentUser || isWindowLoading) {
+      return;
+    }
+
+    await loadSnapshots({ refreshLatestAnchor: true });
+  }
+
   async function handleWindowSizeChange() {
-    const nextWindowDays = Number(windowSizeSelect.value) || 28;
+    const nextWindowDays = normalizeWindowDays(windowSizeSelect.value) || DEFAULT_WINDOW_DAYS;
 
     if (nextWindowDays === currentWindowDays) {
       return;
     }
 
+    saveWindowDaysPreference(nextWindowDays);
     currentWindowDays = nextWindowDays;
     currentWindowIndex = 0;
     hasOlderWindows = false;
@@ -613,9 +663,11 @@
 
     supabaseClient = window.supabase.createClient(config.SUPABASE_URL, config.SUPABASE_ANON_KEY);
 
+    restoreWindowDaysPreference();
     signinForm.addEventListener("submit", handleSignIn);
     exportCsvBtn.addEventListener("click", handleExportCsv);
     compactBtn.addEventListener("click", handleCompactSnapshots);
+    refreshBtn.addEventListener("click", handleRefreshSnapshots);
     windowSizeSelect.addEventListener("change", handleWindowSizeChange);
     prevWindowBtn.addEventListener("click", handlePreviousWindow);
     nextWindowBtn.addEventListener("click", handleNextWindow);
