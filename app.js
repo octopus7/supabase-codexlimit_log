@@ -107,27 +107,34 @@
       return;
     }
 
-    const labels = rows.map((row) => fmt(row.logged_at));
-
-    const pct5 = rows.map((row) => toPercent(row.used_5h, row.limit_5h));
-    const pct7 = rows.map((row) => toPercent(row.used_7d, row.limit_7d));
-    const maxPercent = Math.max(1, ...pct5, ...pct7);
+    const points5 = rows.map((row) => ({
+      x: row.logged_at,
+      y: toPercent(row.used_5h, row.limit_5h)
+    }));
+    const points7 = rows.map((row) => ({
+      x: row.logged_at,
+      y: toPercent(row.used_7d, row.limit_7d)
+    }));
+    const maxPercent = Math.max(
+      1,
+      ...points5.map((point) => point.y),
+      ...points7.map((point) => point.y)
+    );
 
     percentChart = new Chart(percentCanvas.getContext("2d"), {
       type: "line",
       data: {
-        labels,
         datasets: [
           {
             label: "5h %",
-            data: pct5,
+            data: points5,
             borderColor: "#0b7a75",
             backgroundColor: "rgba(11, 122, 117, 0.1)",
             tension: 0.2
           },
           {
             label: "7d %",
-            data: pct7,
+            data: points7,
             borderColor: "#1f6feb",
             backgroundColor: "rgba(31, 111, 235, 0.1)",
             tension: 0.2
@@ -138,6 +145,15 @@
         responsive: true,
         maintainAspectRatio: false,
         scales: {
+          x: {
+            type: "time",
+            time: {
+              tooltipFormat: "yyyy-MM-dd HH:mm"
+            },
+            ticks: {
+              maxRotation: 0
+            }
+          },
           y: {
             beginAtZero: true,
             max: maxPercent
