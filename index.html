@@ -52,10 +52,19 @@
 
       <div class="toolbar">
         <div>
-          <h3>Current 4-Week Window</h3>
+          <h3>Current Window</h3>
           <p id="windowLabel" class="section-note">-</p>
         </div>
         <div class="toolbar-actions">
+          <label class="window-mode-control">
+            <span>Window Size</span>
+            <select id="windowSizeSelect">
+              <option value="7">1 Week</option>
+              <option value="14">2 Weeks</option>
+              <option value="28" selected>4 Weeks</option>
+              <option value="56">8 Weeks</option>
+            </select>
+          </label>
           <button id="prevWindowBtn" type="button" class="button-secondary">Previous 4 Weeks</button>
           <button id="nextWindowBtn" type="button" class="button-secondary">Next 4 Weeks</button>
         </div>

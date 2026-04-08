@@ -132,6 +132,17 @@ button:disabled {
   flex-wrap: wrap;
 }
 
+.window-mode-control {
+  display: grid;
+  gap: 4px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.window-mode-control select {
+  min-width: 120px;
+}
+
 .summary-grid {
   display: grid;
   gap: 12px;

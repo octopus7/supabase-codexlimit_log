@@ -8,6 +8,7 @@
   const signinForm = document.getElementById("signinForm");
   const exportCsvBtn = document.getElementById("exportCsvBtn");
   const compactBtn = document.getElementById("compactBtn");
+  const windowSizeSelect = document.getElementById("windowSizeSelect");
   const prevWindowBtn = document.getElementById("prevWindowBtn");
   const nextWindowBtn = document.getElementById("nextWindowBtn");
   const signoutBtn = document.getElementById("signoutBtn");
@@ -22,7 +23,7 @@
 
   const percentCanvas = document.getElementById("percentChart");
 
-  const FOUR_WEEKS_MS = 28 * 24 * 60 * 60 * 1000;
+  const DAY_MS = 24 * 60 * 60 * 1000;
 
   let supabaseClient = null;
   let currentUser = null;
@@ -32,6 +33,7 @@
   let hasOlderWindows = false;
   let isWindowLoading = false;
   let isExporting = false;
+  let currentWindowDays = Number(windowSizeSelect.value) || 28;
 
   function showMessage(text, type = "info") {
     messageEl.textContent = text || "";
@@ -68,6 +70,14 @@
     return `${fmt(startMs)} - ${fmt(endMs)}`;
   }
 
+  function getWindowModeLabel(days = currentWindowDays) {
+    return days % 7 === 0 ? `${days / 7} Week${days === 7 ? "" : "s"}` : `${days} Days`;
+  }
+
+  function formatOffsetLabel(days) {
+    return days % 7 === 0 ? `${days / 7} week${days === 7 ? "" : "s"}` : `${days} days`;
+  }
+
   function setSignedInView(user) {
     currentUser = user;
     statusText.textContent = "Signed in";
@@ -89,9 +99,16 @@
     compactBtn.disabled = !currentUser || isExporting;
   }
 
+  function updateWindowNavLabels() {
+    const windowModeLabel = getWindowModeLabel();
+    prevWindowBtn.textContent = `Previous ${windowModeLabel}`;
+    nextWindowBtn.textContent = `Next ${windowModeLabel}`;
+  }
+
   function updateWindowButtons() {
     prevWindowBtn.disabled = !currentUser || isWindowLoading || !hasOlderWindows;
     nextWindowBtn.disabled = !currentUser || isWindowLoading || currentWindowIndex === 0;
+    windowSizeSelect.disabled = isWindowLoading;
   }
 
   function renderTable(rows, emptyMessage = "No snapshots yet.") {
@@ -121,13 +138,14 @@
       .join("");
   }
 
-  function createLineDataset(label, points, borderColor, backgroundColor) {
+  function createLineDataset(label, points, borderColor, backgroundColor, fill = false) {
     return {
       label,
       data: points,
       borderColor,
       backgroundColor,
       pointBackgroundColor: borderColor,
+      fill,
       tension: 0.2,
       segment: {
         borderColor: (context) => {
@@ -185,7 +203,7 @@
       data: {
         datasets: [
           createLineDataset("5h %", points5, "#0b7a75", "rgba(11, 122, 117, 0.1)"),
-          createLineDataset("7d %", points7, "#1f6feb", "rgba(31, 111, 235, 0.1)")
+          createLineDataset("7d %", points7, "#1f6feb", "rgba(31, 111, 235, 0.1)", "origin")
         ]
       },
       options: {
@@ -211,8 +229,9 @@
   }
 
   function getWindowBounds() {
-    const endMs = latestWindowEndMs - currentWindowIndex * FOUR_WEEKS_MS;
-    const startMs = endMs - FOUR_WEEKS_MS;
+    const windowSizeMs = currentWindowDays * DAY_MS;
+    const endMs = latestWindowEndMs - currentWindowIndex * windowSizeMs;
+    const startMs = endMs - windowSizeMs;
 
     return {
       startMs,
@@ -439,15 +458,17 @@
 
       hasOlderWindows = await checkHasOlderSnapshots(user.id, startIso);
       windowLabelEl.textContent = formatWindowRange(startMs, endMs);
-      renderTable(data || [], "No snapshots found in this 4-week window.");
+      renderTable(data || [], `No snapshots found in this ${getWindowModeLabel().toLowerCase()} window.`);
       renderCharts(data || []);
 
       if (!data || data.length === 0) {
-        showMessage("No snapshots found in this 4-week window.");
+        showMessage(`No snapshots found in this ${getWindowModeLabel().toLowerCase()} window.`);
       } else if (currentWindowIndex === 0) {
-        showMessage("Showing the latest 4-week window.");
+        showMessage(`Showing the latest ${getWindowModeLabel().toLowerCase()} window.`);
       } else {
-        showMessage(`Showing ${currentWindowIndex * 4} to ${(currentWindowIndex + 1) * 4} weeks before the latest snapshot.`);
+        const startOffset = currentWindowIndex * currentWindowDays;
+        const endOffset = (currentWindowIndex + 1) * currentWindowDays;
+        showMessage(`Showing ${formatOffsetLabel(startOffset)} to ${formatOffsetLabel(endOffset)} before the latest snapshot.`);
       }
     } catch (error) {
       showMessage(error.message || String(error), "error");
@@ -473,6 +494,25 @@
 
     currentWindowIndex -= 1;
     await loadSnapshots({ refreshLatestAnchor: currentWindowIndex === 0 });
+  }
+
+  async function handleWindowSizeChange() {
+    const nextWindowDays = Number(windowSizeSelect.value) || 28;
+
+    if (nextWindowDays === currentWindowDays) {
+      return;
+    }
+
+    currentWindowDays = nextWindowDays;
+    currentWindowIndex = 0;
+    hasOlderWindows = false;
+    updateWindowNavLabels();
+
+    if (currentUser) {
+      await loadSnapshots({ resetWindow: true, refreshLatestAnchor: true });
+    } else {
+      updateWindowButtons();
+    }
   }
 
   async function handleSignIn(event) {
@@ -567,10 +607,12 @@
     signinForm.addEventListener("submit", handleSignIn);
     exportCsvBtn.addEventListener("click", handleExportCsv);
     compactBtn.addEventListener("click", handleCompactSnapshots);
+    windowSizeSelect.addEventListener("change", handleWindowSizeChange);
     prevWindowBtn.addEventListener("click", handlePreviousWindow);
     nextWindowBtn.addEventListener("click", handleNextWindow);
     signoutBtn.addEventListener("click", handleSignOut);
     updateActionButtons();
+    updateWindowNavLabels();
     updateWindowButtons();
 
     statusText.textContent = "Ready";
