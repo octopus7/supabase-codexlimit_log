@@ -145,8 +145,11 @@
       borderColor,
       backgroundColor,
       pointBackgroundColor: borderColor,
+      borderWidth: 1,
+      pointRadius: 1.5,
+      pointHoverRadius: 3,
       fill,
-      tension: 0.2,
+      tension: 0,
       segment: {
         borderColor: (context) => {
           const previousY = context.p0.parsed.y;
@@ -160,6 +163,16 @@
         }
       }
     };
+  }
+
+  function getChartMaxPercent(points5, points7) {
+    const peakPercent = Math.max(
+      0,
+      ...points5.map((point) => point.y),
+      ...points7.map((point) => point.y)
+    );
+
+    return Math.max(5, Math.ceil((peakPercent + 1) / 5) * 5);
   }
 
   function setSignedOutView() {
@@ -192,11 +205,7 @@
       x: row.logged_at,
       y: toPercent(row.used_7d, row.limit_7d)
     }));
-    const maxPercent = Math.max(
-      1,
-      ...points5.map((point) => point.y),
-      ...points7.map((point) => point.y)
-    );
+    const maxPercent = getChartMaxPercent(points5, points7);
 
     percentChart = new Chart(percentCanvas.getContext("2d"), {
       type: "line",
