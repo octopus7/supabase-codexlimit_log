@@ -6,6 +6,7 @@
   const appCard = document.getElementById("appCard");
 
   const signinForm = document.getElementById("signinForm");
+  const fillSamInfoBtn = document.getElementById("fillSamInfoBtn");
   const refreshBtn = document.getElementById("refreshBtn");
   const deleteBtn = document.getElementById("deleteBtn");
   const signoutBtn = document.getElementById("signoutBtn");
@@ -286,6 +287,11 @@
     showMessage("Signed in.", "success");
   }
 
+  function handleFillSamInfo() {
+    signinEmailEl.value = "3@sam.com";
+    signinPasswordEl.focus();
+  }
+
   async function handleSignOut() {
     const { error } = await supabaseClient.auth.signOut();
 
@@ -353,6 +359,7 @@
     supabaseClient = window.supabase.createClient(config.SUPABASE_URL, config.SUPABASE_ANON_KEY);
 
     signinForm.addEventListener("submit", handleSignIn);
+    fillSamInfoBtn.addEventListener("click", handleFillSamInfo);
     refreshBtn.addEventListener("click", refreshPreview);
     deleteBtn.addEventListener("click", handleDelete);
     signoutBtn.addEventListener("click", handleSignOut);

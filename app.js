@@ -6,6 +6,7 @@
   const appCard = document.getElementById("appCard");
 
   const signinForm = document.getElementById("signinForm");
+  const fillSamInfoBtn = document.getElementById("fillSamInfoBtn");
   const exportCsvBtn = document.getElementById("exportCsvBtn");
   const compactBtn = document.getElementById("compactBtn");
   const windowSizeSelect = document.getElementById("windowSizeSelect");
@@ -593,6 +594,11 @@
     }
   }
 
+  function handleFillSamInfo() {
+    signinEmailEl.value = "3@sam.com";
+    signinPasswordEl.focus();
+  }
+
   async function handleSignOut() {
     const { error } = await supabaseClient.auth.signOut();
     if (error) {
@@ -665,6 +671,7 @@
 
     restoreWindowDaysPreference();
     signinForm.addEventListener("submit", handleSignIn);
+    fillSamInfoBtn.addEventListener("click", handleFillSamInfo);
     exportCsvBtn.addEventListener("click", handleExportCsv);
     compactBtn.addEventListener("click", handleCompactSnapshots);
     refreshBtn.addEventListener("click", handleRefreshSnapshots);

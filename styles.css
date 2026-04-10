@@ -58,6 +58,10 @@ h3 {
   gap: 10px;
 }
 
+.auth-fill-button {
+  justify-self: start;
+}
+
 .auth-grid {
   display: grid;
   gap: 14px;
