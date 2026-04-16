@@ -74,12 +74,15 @@ label {
   font-size: 0.95rem;
 }
 
-input {
+input,
+select {
   width: 100%;
   padding: 9px 10px;
   border: 1px solid var(--line);
   border-radius: 8px;
   font-size: 0.95rem;
+  background: #ffffff;
+  color: var(--text);
 }
 
 button {
@@ -219,6 +222,33 @@ button:disabled {
   border: 1px solid var(--line);
   border-radius: 10px;
   padding: 12px;
+}
+
+.monthly-container {
+  width: min(1100px, 92vw);
+  margin: 24px auto 40px;
+}
+
+.monthly-card {
+  display: grid;
+  gap: 16px;
+}
+
+.monthly-select-row {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.monthly-select-control {
+  min-width: min(240px, 100%);
+}
+
+.monthly-select-control select {
+  min-width: 180px;
+}
+
+.monthly-chart-card {
+  min-height: 340px;
 }
 
 .canvas-wrap {

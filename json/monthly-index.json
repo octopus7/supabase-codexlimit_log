@@ -1,0 +1,14 @@
+{
+  "months": [
+    {
+      "value": "2026-03",
+      "label": "2026-03",
+      "file": "usage_logs_2026-03.json"
+    },
+    {
+      "value": "2026-02",
+      "label": "2026-02",
+      "file": "usage_logs_2026-02.json"
+    }
+  ]
+}
