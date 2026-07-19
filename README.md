@@ -1,4 +1,11 @@
-﻿# Codex Usage Tracker (Supabase + Static Web)
+ ### 사용중지! 아래 대시보드로 대체됨 
+
+[octopus7/codex-usage-dashboard](https://github.com/octopus7/codex-usage-dashboard)
+
+데이터도 이전
+
+ 
+ # Codex Usage Tracker (Supabase + Static Web)
 
 EN: This project is a static web app for recording Codex usage snapshots and viewing trends for:
 - `5h` usage
